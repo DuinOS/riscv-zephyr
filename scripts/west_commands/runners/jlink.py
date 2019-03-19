@@ -7,6 +7,7 @@
 import os
 import tempfile
 import sys
+import shlex
 
 from west import log
 from runners.core import ZephyrBinaryRunner, RunnerCaps, \
@@ -24,7 +25,7 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
                  flash_addr=0x0, erase=True,
                  iface='swd', speed='auto',
                  gdbserver='JLinkGDBServer', gdb_port=DEFAULT_JLINK_GDB_PORT,
-                 tui=False):
+                 tui=False, tool_opt=[]):
         super(JLinkBinaryRunner, self).__init__(cfg)
         self.bin_name = cfg.bin_file
         self.elf_name = cfg.elf_file
@@ -38,6 +39,10 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
         self.speed = speed
         self.gdb_port = gdb_port
         self.tui_arg = ['-tui'] if tui else []
+
+        self.tool_opt = []
+        for opts in [shlex.split(opt) for opt in tool_opt]:
+            self.tool_opt += opts
 
     @classmethod
     def name(cls):
@@ -65,6 +70,9 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
         parser.add_argument('--gdb-port', default=DEFAULT_JLINK_GDB_PORT,
                             help='pyocd gdb port, defaults to {}'.format(
                                 DEFAULT_JLINK_GDB_PORT))
+        parser.add_argument('--tool-opt', default=[], action='append',
+                            help='''Additional options for JLink Commander,
+                            e.g. \'-autoconnect 1\' ''')
         parser.add_argument('--commander', default=DEFAULT_JLINK_EXE,
                             help='J-Link Commander, default is JLinkExe')
         parser.add_argument('--erase', default=False, action='store_true',
@@ -80,7 +88,7 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
                                  iface=args.iface, speed=args.speed,
                                  gdbserver=args.gdbserver,
                                  gdb_port=args.gdb_port,
-                                 tui=args.tui)
+                                 tui=args.tui, tool_opt=args.tool_opt)
 
     def print_gdbserver_message(self):
         log.inf('J-Link GDB server running on port {}'.format(self.gdb_port))
@@ -93,7 +101,8 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
                        '-speed', self.speed,
                        '-device', self.device,
                        '-silent',
-                       '-singlerun'])
+                       '-singlerun'] +
+                      self.tool_opt)
 
         if command == 'flash':
             self.flash(**kwargs)
@@ -144,7 +153,8 @@ class JLinkBinaryRunner(ZephyrBinaryRunner):
                    ['-if', self.iface,
                     '-speed', self.speed,
                     '-device', self.device,
-                    '-CommanderScript', fname])
+                    '-CommanderScript', fname] +
+                   self.tool_opt)
 
             log.inf('Flashing Target Device')
             self.check_call(cmd)
