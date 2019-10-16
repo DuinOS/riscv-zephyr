@@ -60,6 +60,8 @@ struct gpio_sifive_data {
 	((volatile struct gpio_sifive_t *)(DEV_GPIO_CFG(dev))->gpio_base_addr)
 #define DEV_GPIO_DATA(dev)				\
 	((struct gpio_sifive_data *)(dev)->driver_data)
+#define DEV_GPIO_IRQ(irq)                               \
+	(((irq) << 8) | DT_INST_0_SIFIVE_PLIC_1_0_0_IRQ_0)
 
 static void gpio_sifive_irq_handler(void *arg)
 {
@@ -290,7 +292,7 @@ static int gpio_sifive_pin_interrupt_configure(struct device *dev,
 		gpio->fall_ie &= ~BIT(pin);
 		gpio->high_ie &= ~BIT(pin);
 		gpio->low_ie &= ~BIT(pin);
-		irq_disable(cfg->gpio_irq_base + pin);
+		irq_disable(DEV_GPIO_IRQ(cfg->gpio_irq_base + pin));
 		break;
 	case GPIO_INT_MODE_LEVEL:
 		gpio->rise_ie &= ~BIT(pin);
@@ -304,7 +306,7 @@ static int gpio_sifive_pin_interrupt_configure(struct device *dev,
 			gpio->high_ie &= ~BIT(pin);
 			gpio->low_ie |= BIT(pin);
 		}
-		irq_enable(cfg->gpio_irq_base + pin);
+		irq_enable(DEV_GPIO_IRQ(cfg->gpio_irq_base + pin));
 		break;
 	case GPIO_INT_MODE_EDGE:
 		gpio->high_ie &= ~BIT(pin);
@@ -321,7 +323,7 @@ static int gpio_sifive_pin_interrupt_configure(struct device *dev,
 			gpio->rise_ie |= BIT(pin);
 			gpio->fall_ie |= BIT(pin);
 		}
-		irq_enable(cfg->gpio_irq_base + pin);
+		irq_enable(DEV_GPIO_IRQ(cfg->gpio_irq_base + pin));
 		break;
 	}
 
@@ -352,7 +354,7 @@ static int gpio_sifive_enable_callback(struct device *dev,
 	}
 
 	/* Enable interrupt for the pin at PLIC level */
-	irq_enable(cfg->gpio_irq_base + pin);
+	irq_enable(DEV_GPIO_IRQ(cfg->gpio_irq_base + pin));
 
 	return 0;
 }
@@ -372,7 +374,7 @@ static int gpio_sifive_disable_callback(struct device *dev,
 	}
 
 	/* Disable interrupt for the pin at PLIC level */
-	irq_disable(cfg->gpio_irq_base + pin);
+	irq_disable(DEV_GPIO_IRQ(cfg->gpio_irq_base + pin));
 
 	return 0;
 }
