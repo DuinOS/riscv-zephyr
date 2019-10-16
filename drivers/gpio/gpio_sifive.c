@@ -42,7 +42,7 @@ struct gpio_sifive_t {
 
 struct gpio_sifive_config {
 	uintptr_t            gpio_base_addr;
-	u32_t                plic_irq;
+	u32_t		     plic_irq;
 	u32_t                gpio_irq_base;
 	sifive_cfg_func_t    gpio_cfg_func;
 };
@@ -61,8 +61,8 @@ struct gpio_sifive_data {
 	((volatile struct gpio_sifive_t *)(DEV_GPIO_CFG(dev))->gpio_base_addr)
 #define DEV_GPIO_DATA(dev)				\
 	((struct gpio_sifive_data *)(dev)->driver_data)
-#define DEV_GPIO_IRQ(irq, plic_irq)			\
-	((((irq) - (plic_irq)) << 8) | (plic_irq))
+#define DEV_GPIO_IRQ(cfg, pin) \
+	(((cfg->gpio_irq_base + (pin)) << 8) | cfg->plic_irq)
 
 static void gpio_sifive_irq_handler(void *arg)
 {
@@ -73,9 +73,7 @@ static void gpio_sifive_irq_handler(void *arg)
 	int pin_mask;
 
 	/* Get the pin number generating the interrupt */
-	int plic_irq = riscv_plic_get_irq();
-	int pin = plic_irq - (cfg->gpio_irq_base - cfg->plic_irq) + 1;
-	pin_mask = (1 << pin);
+	pin_mask = 1 << (riscv_plic_get_irq() - cfg->gpio_irq_base + 1);
 
 	/*
 	 * Write to either the rise_ip, fall_ip, high_ip or low_ip registers
@@ -294,7 +292,7 @@ static int gpio_sifive_pin_interrupt_configure(struct device *dev,
 		gpio->fall_ie &= ~BIT(pin);
 		gpio->high_ie &= ~BIT(pin);
 		gpio->low_ie &= ~BIT(pin);
-		irq_disable(DEV_GPIO_IRQ(cfg->gpio_irq_base + pin, cfg->plic_irq));
+		irq_disable(DEV_GPIO_IRQ(cfg, pin));
 		break;
 	case GPIO_INT_MODE_LEVEL:
 		gpio->rise_ie &= ~BIT(pin);
@@ -308,7 +306,7 @@ static int gpio_sifive_pin_interrupt_configure(struct device *dev,
 			gpio->high_ie &= ~BIT(pin);
 			gpio->low_ie |= BIT(pin);
 		}
-		irq_enable(DEV_GPIO_IRQ(cfg->gpio_irq_base + pin, cfg->plic_irq));
+		irq_enable(DEV_GPIO_IRQ(cfg, pin));
 		break;
 	case GPIO_INT_MODE_EDGE:
 		gpio->high_ie &= ~BIT(pin);
@@ -325,7 +323,7 @@ static int gpio_sifive_pin_interrupt_configure(struct device *dev,
 			gpio->rise_ie |= BIT(pin);
 			gpio->fall_ie |= BIT(pin);
 		}
-		irq_enable(DEV_GPIO_IRQ(cfg->gpio_irq_base + pin, cfg->plic_irq));
+		irq_enable(DEV_GPIO_IRQ(cfg, pin));
 		break;
 	}
 
@@ -356,7 +354,7 @@ static int gpio_sifive_enable_callback(struct device *dev,
 	}
 
 	/* Enable interrupt for the pin at PLIC level */
-	irq_enable(DEV_GPIO_IRQ(cfg->gpio_irq_base + pin, cfg->plic_irq));
+	irq_enable(DEV_GPIO_IRQ(cfg, pin));
 
 	return 0;
 }
@@ -376,7 +374,7 @@ static int gpio_sifive_disable_callback(struct device *dev,
 	}
 
 	/* Disable interrupt for the pin at PLIC level */
-	irq_disable(DEV_GPIO_IRQ(cfg->gpio_irq_base + pin, cfg->plic_irq));
+	irq_disable(DEV_GPIO_IRQ(cfg, pin));
 
 	return 0;
 }
@@ -435,16 +433,10 @@ static void gpio_sifive_cfg_0(void);
 	((irq >> 8) + (irq & 0xFF))
 
 static const struct gpio_sifive_config gpio_sifive_config0 = {
-	.gpio_base_addr    = DT_INST_0_SIFIVE_GPIO0_BASE_ADDRESS,
-	/*
-	 * This driver assumes that the GPIO interrupts are Level 2 interrupts
-	 * managed by a PLIC. Therefore, the global IRQ number for the first
-	 * GPIO pin is the sum of the first and second bytes of
-	 * DT_INST_0_SIFIVE_GPIO0_IRQ_0.
-	 */
-	.plic_irq          = (DT_INST_0_SIFIVE_GPIO0_IRQ_0 & 0xFF),
-	.gpio_irq_base     = LEVEL2_IRQ_TO_GLOBAL(DT_INST_0_SIFIVE_GPIO0_IRQ_0),
-	.gpio_cfg_func     = gpio_sifive_cfg_0,
+	.gpio_base_addr = DT_INST_0_SIFIVE_GPIO0_BASE_ADDRESS,
+	.plic_irq       = (DT_INST_0_SIFIVE_GPIO0_IRQ_0 & 0xFF),
+	.gpio_irq_base  = (DT_INST_0_SIFIVE_GPIO0_IRQ_0 >> 8),
+	.gpio_cfg_func  = gpio_sifive_cfg_0,
 };
 
 static struct gpio_sifive_data gpio_sifive_data0;
