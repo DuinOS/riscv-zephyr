@@ -281,6 +281,7 @@ static int gpio_sifive_pin_interrupt_configure(struct device *dev,
 					      enum gpio_int_trig trig)
 {
 	volatile struct gpio_sifive_t *gpio = DEV_GPIO(dev);
+	const struct gpio_sifive_config *cfg = DEV_GPIO_CFG(dev);
 
 	switch (mode) {
 	case GPIO_INT_MODE_DISABLED:
@@ -417,6 +418,9 @@ static int gpio_sifive_init(struct device *dev)
 
 	/* Setup IRQ handler for each gpio pin */
 	cfg->gpio_cfg_func();
+
+	printk("Initializing gpio,sifive0\n");
+	printk("gpio_irq_base: %d\n", cfg->gpio_irq_base);
 
 	return 0;
 }
