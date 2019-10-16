@@ -73,7 +73,9 @@ static void gpio_sifive_irq_handler(void *arg)
 	int pin_mask;
 
 	/* Get the pin number generating the interrupt */
-	pin_mask = 1 << (riscv_plic_get_irq() - cfg->gpio_irq_base);
+	int plic_irq = riscv_plic_get_irq();
+	int pin = plic_irq - (cfg->gpio_irq_base - cfg->plic_irq) + 1;
+	pin_mask = (1 << pin);
 
 	/*
 	 * Write to either the rise_ip, fall_ip, high_ip or low_ip registers
