@@ -71,6 +71,7 @@ static void gpio_sifive_irq_handler(void *arg)
 
 	/* Get the pin number generating the interrupt */
 	pin_mask = 1 << (riscv_plic_get_irq() - cfg->gpio_irq_base);
+	printk("gpio_sifive_irq_handler: plic_irq %d\n", riscv_plic_get_irq());
 
 	/*
 	 * Write to either the rise_ip, fall_ip, high_ip or low_ip registers
@@ -288,6 +289,7 @@ static int gpio_sifive_pin_interrupt_configure(struct device *dev,
 		gpio->fall_ie &= ~BIT(pin);
 		gpio->high_ie &= ~BIT(pin);
 		gpio->low_ie &= ~BIT(pin);
+		irq_disable(cfg->gpio_irq_base + pin);
 		break;
 	case GPIO_INT_MODE_LEVEL:
 		gpio->rise_ie &= ~BIT(pin);
@@ -301,6 +303,7 @@ static int gpio_sifive_pin_interrupt_configure(struct device *dev,
 			gpio->high_ie &= ~BIT(pin);
 			gpio->low_ie |= BIT(pin);
 		}
+		irq_enable(cfg->gpio_irq_base + pin);
 		break;
 	case GPIO_INT_MODE_EDGE:
 		gpio->high_ie &= ~BIT(pin);
@@ -317,6 +320,7 @@ static int gpio_sifive_pin_interrupt_configure(struct device *dev,
 			gpio->rise_ie |= BIT(pin);
 			gpio->fall_ie |= BIT(pin);
 		}
+		irq_enable(cfg->gpio_irq_base + pin);
 		break;
 	}
 
@@ -419,9 +423,21 @@ static int gpio_sifive_init(struct device *dev)
 
 static void gpio_sifive_cfg_0(void);
 
+/*
+ * The global IRQ number is the sum of the level 1 and 2 IRQ numbers
+ */
+#define LEVEL2_IRQ_TO_GLOBAL(irq) \
+	((irq >> 8) + (irq & 0xFF))
+
 static const struct gpio_sifive_config gpio_sifive_config0 = {
 	.gpio_base_addr    = DT_INST_0_SIFIVE_GPIO0_BASE_ADDRESS,
-	.gpio_irq_base     = DT_INST_0_SIFIVE_GPIO0_IRQ_0,
+	/*
+	 * This driver assumes that the GPIO interrupts are Level 2 interrupts
+	 * managed by a PLIC. Therefore, the global IRQ number for the first
+	 * GPIO pin is the sum of the first and second bytes of
+	 * DT_INST_0_SIFIVE_GPIO0_IRQ_0.
+	 */
+	.gpio_irq_base     = LEVEL2_IRQ_TO_GLOBAL(DT_INST_0_SIFIVE_GPIO0_IRQ_0),
 	.gpio_cfg_func     = gpio_sifive_cfg_0,
 };
 
